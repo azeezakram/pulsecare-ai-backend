@@ -15,20 +15,6 @@ class TriagePredictionRequest(BaseModel):
     rr: int = Field(..., ge=5, le=60)
     bt: float = Field(..., ge=35.0, le=42.0)
 
-    # Optional derived features
-    shockIndex: Optional[float] = None
-    pulsePressure: Optional[float] = None
-    ppRatio: Optional[float] = None
-    hrBtInteraction: Optional[float] = None
-    rrHrRatio: Optional[float] = None
-
-    isFever: Optional[bool] = None
-    isTachy: Optional[bool] = None
-    isLowSbp: Optional[bool] = None
-    isLowDbp: Optional[bool] = None
-    isTachypnea: Optional[bool] = None
-
-
 class TriagePredictionResponse(BaseModel):
     predictedTriageLevel: int
     confidence: float
