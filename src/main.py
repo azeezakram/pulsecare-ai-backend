@@ -1,85 +1,89 @@
 from fastapi import FastAPI
 import joblib
-import numpy as np
-from dto import TriagePredictionRequest, TriagePredictionResponse
+import pandas as pd
+from src.dto import TriagePredictionRequest, TriagePredictionResponse
+import os
 
 app = FastAPI(title="Triage Prediction API")
 
-# Load model + pipeline
-model = joblib.load("model/model.pkl")
-pipeline = joblib.load("model/pipeline.pkl")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Load trained objects
+model = joblib.load(os.path.join(BASE_DIR, "src", "model", "triage_model.pkl"))
+scaler = joblib.load(os.path.join(BASE_DIR, "src", "model", "scaler.pkl"))
+final_features = joblib.load(os.path.join(BASE_DIR, "src", "model", "final_features.pkl"))  # snake_case
 
 
-def compute_derived_features(data: TriagePredictionRequest):
-    sbp, dbp, hr, rr, bt = data.sbp, data.dbp, data.hr, data.rr, data.bt
+def calculate_features(req: TriagePredictionRequest):
+    """Compute derived features in snake_case to match training."""
+    df = pd.DataFrame([{
+        "sex": req.sex,
+        "arrival_mode": req.arrivalMode,
+        "injury": req.injury,
+        "mental": req.mental,
+        "pain": req.pain,
+        "age": req.age,
+        "sbp": req.sbp,
+        "dbp": req.dbp,
+        "hr": req.hr,
+        "rr": req.rr,
+        "bt": req.bt
+    }])
+    
+    df['shock_index'] = df['hr'] / df['sbp']
+    df['pulse_pressure'] = df['sbp'] - df['dbp']
+    df['pp_ratio'] = df['pulse_pressure'] / df['sbp']
+    df['hr_bt_interaction'] = df['hr'] * df['bt']
+    df['rr_hr_ratio'] = df['rr'] / (df['hr'] + 1)
+    df['is_fever'] = (df['bt'] >= 38).astype(int)
+    df['is_tachy'] = (df['hr'] >= 120).astype(int)
+    df['is_low_sbp'] = (df['sbp'] <= 90).astype(int)
+    df['is_low_dbp'] = (df['dbp'] <= 60).astype(int)
+    df['is_tachypnea'] = (df['rr'] >= 22).astype(int)
+    
+    return df.iloc[0].to_dict()
 
-    shock_index = data.shockIndex or round(hr / sbp, 3)
-    pulse_pressure = data.pulsePressure or round(sbp - dbp, 3)
-    pp_ratio = data.ppRatio or round(pulse_pressure / sbp, 3)
-    hr_bt_interaction = data.hrBtInteraction or round(hr * bt, 3)
-    rr_hr_ratio = data.rrHrRatio or round(rr / hr, 3)
 
-    is_fever = data.isFever if data.isFever is not None else bt >= 38.0
-    is_tachy = data.isTachy if data.isTachy is not None else hr > 100
-    is_low_sbp = data.isLowSbp if data.isLowSbp is not None else sbp < 90
-    is_low_dbp = data.isLowDbp if data.isLowDbp is not None else dbp < 60
-    is_tachypnea = data.isTachypnea if data.isTachypnea is not None else rr > 20
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Triage Prediction API"}
 
-    return {
-        "shockIndex": shock_index,
-        "pulsePressure": pulse_pressure,
-        "ppRatio": pp_ratio,
-        "hrBtInteraction": hr_bt_interaction,
-        "rrHrRatio": rr_hr_ratio,
-        "isFever": is_fever,
-        "isTachy": is_tachy,
-        "isLowSbp": is_low_sbp,
-        "isLowDbp": is_low_dbp,
-        "isTachypnea": is_tachypnea
+@app.post("/predict", response_model=TriagePredictionResponse)
+def predict(request: TriagePredictionRequest):
+    features = calculate_features(request)
+
+    df_features = pd.DataFrame([features])
+    X_ordered = df_features[final_features]
+    X_scaled = scaler.transform(X_ordered)
+    proba = model.predict_proba(X_scaled)[0]
+
+    threshold = 0.7
+    pred_class = 0 if proba[0] > threshold else 1
+
+    # if features['sbp'] <= 90 or features['hr'] >= 120 or features['rr'] >= 22 or features['bt'] >= 38:
+    #     pred_class = 0
+
+    severity = "Critical" if pred_class == 0 else "Non-Critical"
+    confidence = proba[pred_class]
+
+    camel_features = {
+        "shockIndex": features["shock_index"],
+        "pulsePressure": features["pulse_pressure"],
+        "ppRatio": features["pp_ratio"],
+        "hrBtInteraction": features["hr_bt_interaction"],
+        "rrHrRatio": features["rr_hr_ratio"],
+        "isFever": bool(features["is_fever"]),
+        "isTachy": bool(features["is_tachy"]),
+        "isLowSbp": bool(features["is_low_sbp"]),
+        "isLowDbp": bool(features["is_low_dbp"]),
+        "isTachypnea": bool(features["is_tachypnea"]),
     }
 
-
-@app.post("/triage/predict", response_model=TriagePredictionResponse)
-def predict(request: TriagePredictionRequest):
-    derived = compute_derived_features(request)
-
-    # Combine features exactly in model training order
-    feature_vector = np.array([[
-        request.sex,
-        request.arrivalMode,
-        request.injury,
-        request.mental,
-        request.pain,
-        request.age,
-        request.sbp,
-        request.dbp,
-        request.hr,
-        request.rr,
-        request.bt,
-
-        derived["shockIndex"],
-        derived["pulsePressure"],
-        derived["ppRatio"],
-        derived["hrBtInteraction"],
-        derived["rrHrRatio"],
-
-        int(derived["isFever"]),
-        int(derived["isTachy"]),
-        int(derived["isLowSbp"]),
-        int(derived["isLowDbp"]),
-        int(derived["isTachypnea"])
-    ]])
-
-    processed = pipeline.transform(feature_vector)
-    prediction = model.predict(processed)[0]
-    confidence = np.max(model.predict_proba(processed))
-
-    severity = "CRITICAL" if prediction == 0 else "NON_CRITICAL"
-
     return TriagePredictionResponse(
-        predictedTriageLevel=int(prediction),
-        confidence=float(round(confidence, 4)),
+        predictedTriageLevel=pred_class,
+        confidence=confidence,
         severity=severity,
-        **request.dict(),
-        **derived
+        **request.model_dump(),
+        **camel_features
     )
+
