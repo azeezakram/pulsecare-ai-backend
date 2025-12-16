@@ -1,9 +1,10 @@
-from fastapi import FastAPI
-import joblib
-import pandas as pd
+from fastapi import FastAPI, Security
+from src.config.auth import verify_api_key
 from src.dto import TriagePredictionRequest, TriagePredictionResponse
-import os
 from src.utils import calculate_features
+import pandas as pd
+import joblib
+import os
 
 app = FastAPI(title="Triage Prediction API")
 
@@ -14,11 +15,11 @@ scaler = joblib.load(os.path.join(BASE_DIR, "src", "model", "scaler.pkl"))
 final_features = joblib.load(os.path.join(BASE_DIR, "src", "model", "final_features.pkl"))  # snake_case
 
 @app.get("/")
-def read_root():
+def read_root(api_key: str = Security(verify_api_key)):
     return {"message": "Welcome to the Triage Prediction API"}
 
 @app.post("/predict", response_model=TriagePredictionResponse)
-def predict(request: TriagePredictionRequest):
+def predict(request: TriagePredictionRequest, api_key: str = Security(verify_api_key)):
     features = calculate_features(request)
 
     df_features = pd.DataFrame([features])
