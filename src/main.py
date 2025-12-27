@@ -1,10 +1,12 @@
+import os
+
+import joblib
+import pandas as pd
 from fastapi import FastAPI, Security
+
 from src.config.auth import verify_api_key
 from src.dto import TriagePredictionRequest, TriagePredictionResponse
 from src.utils import calculate_features
-import pandas as pd
-import joblib
-import os
 
 app = FastAPI(title="Triage Prediction API")
 
@@ -23,9 +25,9 @@ def predict(request: TriagePredictionRequest, api_key: str = Security(verify_api
     features = calculate_features(request)
 
     df_features = pd.DataFrame([features])
-    X_ordered = df_features[final_features]
-    X_scaled = scaler.transform(X_ordered)
-    proba = model.predict_proba(X_scaled)[0]
+    x_ordered = df_features[final_features]
+    x_scaled = scaler.transform(x_ordered)
+    proba = model.predict_proba(x_scaled)[0]
 
     threshold = 0.7
     pred_class = 0 if proba[0] > threshold else 1
@@ -49,11 +51,15 @@ def predict(request: TriagePredictionRequest, api_key: str = Security(verify_api
         "isTachypnea": bool(features["is_tachypnea"]),
     }
 
-    return TriagePredictionResponse(
-        predictedTriageLevel=pred_class,
+    response = TriagePredictionResponse(
+        triageLevel=pred_class,
         confidence=confidence,
         severity=severity,
         **request.model_dump(),
         **camel_features
     )
+
+    print(response.model_dump())
+
+    return response
 
