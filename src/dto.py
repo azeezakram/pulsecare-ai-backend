@@ -16,7 +16,7 @@ class TriagePredictionRequest(BaseModel):
     bt: float = Field(..., ge=35.0, le=42.0)
 
 class TriagePredictionResponse(BaseModel):
-    predictedTriageLevel: int
+    triageLevel: int
     confidence: float
     severity: str
 
