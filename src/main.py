@@ -14,7 +14,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 model = joblib.load(os.path.join(BASE_DIR, "src", "model", "triage_model.pkl"))
 scaler = joblib.load(os.path.join(BASE_DIR, "src", "model", "scaler.pkl"))
-final_features = joblib.load(os.path.join(BASE_DIR, "src", "model", "final_features.pkl"))  # snake_case
+final_features = joblib.load(os.path.join(BASE_DIR, "src", "model", "final_features.pkl"))
 
 @app.get("/")
 def read_root(api_key: str = Security(verify_api_key)):

@@ -2,7 +2,6 @@ from src.dto import TriagePredictionRequest
 import pandas as pd
 
 def calculate_features(req: TriagePredictionRequest):
-    """Compute derived features in snake_case to match training."""
     df = pd.DataFrame([{
         "sex": req.sex,
         "arrival_mode": req.arrivalMode,

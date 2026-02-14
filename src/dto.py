@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field
-from typing import Optional
 
 class TriagePredictionRequest(BaseModel):
     sex: int = Field(..., ge=0, le=1)
@@ -20,7 +19,6 @@ class TriagePredictionResponse(BaseModel):
     confidence: float
     severity: str
 
-    # Echo back features
     sex: int
     arrivalMode: int
     injury: int
