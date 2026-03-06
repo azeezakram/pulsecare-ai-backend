@@ -28,3 +28,4 @@ def calculate_features(req: TriagePredictionRequest):
     df['is_tachypnea'] = (df['rr'] >= 22).astype(int)
 
     return df.iloc[0].to_dict()
+

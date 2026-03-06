@@ -18,7 +18,6 @@ class TriagePredictionResponse(BaseModel):
     triageLevel: int
     confidence: float
     severity: str
-
     sex: int
     arrivalMode: int
     injury: int
@@ -30,15 +29,14 @@ class TriagePredictionResponse(BaseModel):
     hr: int
     rr: int
     bt: float
-
     shockIndex: float
     pulsePressure: float
     ppRatio: float
     hrBtInteraction: float
     rrHrRatio: float
-
     isFever: bool
     isTachy: bool
     isLowSbp: bool
     isLowDbp: bool
     isTachypnea: bool
+
